@@ -11,6 +11,13 @@ import numpy as np
 import argparse
 import json
 
+from sklearn.preprocessing import Imputer, StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import (RandomTreesEmbedding, RandomForestClassifier,
+                              GradientBoostingClassifier)
+from sklearn.grid_search import GridSearchCV
+
+import lightgbm as lgb
 
 def read_and_extract_features(reader, period, features):
     ret = common_utils.read_chunk(reader, reader.get_number_of_examples())
@@ -29,47 +36,75 @@ def main():
                         choices=['first4days', 'first8days', 'last12hours', 'first25percent', 'first50percent', 'all'])
     parser.add_argument('--features', type=str, default='all', help='specifies what features to extract',
                         choices=['all', 'len', 'all_but_len'])
+    parser.add_argument('--method', type=str, default='logistic', choices=['gridsearch', 'lgbm', 'logistic'])
     args = parser.parse_args()
     print(args)
+    import os, pickle
+    data_cache = '../../../data/in-hospital-mortality/lr_cache.pickle'
+    if os.path.exists(data_cache):
+        print('Loading data cache ...')
+        with open(data_cache, 'rb') as f:
+            (train_X, train_y, train_names), (val_X, val_y, val_names), (test_X, test_y, test_names) = pickle.load(f)
+    else:
+        train_reader = InHospitalMortalityReader(dataset_dir='../../../data/in-hospital-mortality/train/',
+                                                listfile='../../../data/in-hospital-mortality/train_listfile.csv',
+                                                period_length=48.0)
 
-    train_reader = InHospitalMortalityReader(dataset_dir='../../../data/in-hospital-mortality/train/',
-                                             listfile='../../../data/in-hospital-mortality/train_listfile.csv',
-                                             period_length=48.0)
-
-    val_reader = InHospitalMortalityReader(dataset_dir='../../../data/in-hospital-mortality/train/',
-                                           listfile='../../../data/in-hospital-mortality/val_listfile.csv',
-                                           period_length=48.0)
-
-    test_reader = InHospitalMortalityReader(dataset_dir='../../../data/in-hospital-mortality/test/',
-                                            listfile='../../../data/in-hospital-mortality/test_listfile.csv',
+        val_reader = InHospitalMortalityReader(dataset_dir='../../../data/in-hospital-mortality/train/',
+                                            listfile='../../../data/in-hospital-mortality/val_listfile.csv',
                                             period_length=48.0)
 
-    print('Reading data and extracting features ...')
-    (train_X, train_y, train_names) = read_and_extract_features(train_reader, args.period, args.features)
-    (val_X, val_y, val_names) = read_and_extract_features(val_reader, args.period, args.features)
-    (test_X, test_y, test_names) = read_and_extract_features(test_reader, args.period, args.features)
-    print('  train data shape = {}'.format(train_X.shape))
-    print('  validation data shape = {}'.format(val_X.shape))
-    print('  test data shape = {}'.format(test_X.shape))
+        test_reader = InHospitalMortalityReader(dataset_dir='../../../data/in-hospital-mortality/test/',
+                                                listfile='../../../data/in-hospital-mortality/test_listfile.csv',
+                                                period_length=48.0)
 
-    print('Imputing missing values ...')
-    imputer = Imputer(missing_values=np.nan, strategy='mean', axis=0, verbose=0, copy=True)
-    imputer.fit(train_X)
-    train_X = np.array(imputer.transform(train_X), dtype=np.float32)
-    val_X = np.array(imputer.transform(val_X), dtype=np.float32)
-    test_X = np.array(imputer.transform(test_X), dtype=np.float32)
+        print('Reading data and extracting features ...')
+        (train_X, train_y, train_names) = read_and_extract_features(train_reader, args.period, args.features)
+        (val_X, val_y, val_names) = read_and_extract_features(val_reader, args.period, args.features)
+        (test_X, test_y, test_names) = read_and_extract_features(test_reader, args.period, args.features)
+        print('  train data shape = {}'.format(train_X.shape))
+        print('  validation data shape = {}'.format(val_X.shape))
+        print('  test data shape = {}'.format(test_X.shape))
 
-    print('Normalizing the data to have zero mean and unit variance ...')
-    scaler = StandardScaler()
-    scaler.fit(train_X)
-    train_X = scaler.transform(train_X)
-    val_X = scaler.transform(val_X)
-    test_X = scaler.transform(test_X)
+        print('Imputing missing values ...')
+        imputer = Imputer(missing_values=np.nan, strategy='mean', axis=0, verbose=0, copy=True)
+        imputer.fit(train_X)
+        train_X = np.array(imputer.transform(train_X), dtype=np.float32)
+        val_X = np.array(imputer.transform(val_X), dtype=np.float32)
+        test_X = np.array(imputer.transform(test_X), dtype=np.float32)
+
+        print('Normalizing the data to have zero mean and unit variance ...')
+        scaler = StandardScaler()
+        scaler.fit(train_X)
+        train_X = scaler.transform(train_X)
+        val_X = scaler.transform(val_X)
+        test_X = scaler.transform(test_X)
+        with open(data_cache, 'wb') as f:
+            pickle.dump([
+                (train_X, train_y, train_names), 
+                (val_X, val_y, val_names), 
+                (test_X, test_y, test_names)
+            ], f, pickle.HIGHEST_PROTOCOL)
 
     penalty = ('l2' if args.l2 else 'l1')
     file_name = '{}.{}.{}.C{}'.format(args.period, args.features, penalty, args.C)
 
-    logreg = LogisticRegression(penalty=penalty, C=args.C, random_state=42)
+    print("use {} to fit".format(args.method))
+    if args.method == "gridsearch":
+        param_test1 = {'n_estimators':range(10,200,20)}
+        gsearch1 = GridSearchCV(estimator = GradientBoostingClassifier(), param_grid = param_test1)
+
+        gsearch1.fit(train_X, train_y)
+        print("gridsearch best result: ", gsearch1.best_params_, gsearch1.best_score_)
+        logreg = GradientBoostingClassifier(n_estimators=gsearch1.best_params_['n_estimators'])
+    elif args.method =="lgbm":
+        logreg = lgb.LGBMClassifier(objective='binary',
+                            num_leaves=31,
+                            learning_rate=0.05,
+                            n_estimators=20)
+    elif args.method == "logistic":
+        logreg = LogisticRegression(penalty=penalty, C=args.C, random_state=42)
+
     logreg.fit(train_X, train_y)
 
     common_utils.create_directory('results')

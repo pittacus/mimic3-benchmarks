@@ -10,9 +10,9 @@ NOW=$(date +%Y%m%d_%H%M%S)
 
 export PS4='+{$LINENO:${FUNCNAME[0]}} '
 
-export CUDA_VISIBLE_DEVICES=$(python -c "import setGPU" | cut -d " " -f 5)
+export CUDA_VISIBLE_DEVICES=$(python -c "import setGPU" | cut -d " " -f 5) || true
 
-source activate keras
+source activate mimic
 
 old="$IFS"
 IFS='_'
@@ -20,12 +20,16 @@ export ARGS="$*"
 export ARGS="${ARGS//-/}"
 IFS=$old
 
-export PREFIX=`basename $TASK .sh`_${NOW}
+export PREFIX=${NOW}_${TASK}
+export LOGFILE=logs/${NOW}_${TASK}_${ARGS}.log
 
+mkdir -p logs
 exec &> >(tee "$LOGFILE")
 exec 2>&1
 
-echo ">>" BEGIN $NOW $TASK $ARGS GPU $CUDA_VISIBLE_DEVICES LOG ${PREFIX}__${ARGS}.log
+echo ">> CMD $NOW $TASK $ARGS"
+echo ">> ARG $*"
+echo ">> ENV GPU $CUDA_VISIBLE_DEVICES LOG $LOGFILE"
 echo ">> tensorboard --logdir=$PREFIX" 
 
 # cd  ../mimic3-benchmarks
@@ -91,14 +95,53 @@ default)
     python -u main.py --network keras_models/lstm.py --dim 512 --timestep 1 --mode train --batch_size 16 --dropout 0.3 --ihm_C 0.2 --decomp_C 1.0 --los_C 1.5 --pheno_C 1.0
 
 ;;
+
+test)
+    ./run.sh test_ihm_lr
+    ./run.sh test_ihm_dl
+;;
+
 ihm_lr)
     cd mimic3models/in_hospital_mortality/logistic/
     python -u main.py $@
 ;;
 
+test_ihm_lr)
+# usage: main.py [-h] [--C C] [--l1] [--l2]
+#                [--period {first4days,first8days,last12hours,first25percent,first50percent,all}]
+#                [--features {all,len,all_but_len}]
+#                [--method {gridsearch,lgbm,logistic}]
+
+    ./run.sh ihm_lr --method logistic --l1
+    ./run.sh ihm_lr --method logistic --l2
+    ./run.sh ihm_lr --method gridsearch
+    ./run.sh ihm_lr --method lgbm
+
+    ./run.sh ihm_lr --method gridsearch --period first4days --features all
+    ./run.sh ihm_lr --method gridsearch --period first8days --features all
+    ./run.sh ihm_lr --method gridsearch --period last12hours --features all
+    ./run.sh ihm_lr --method gridsearch --period first25percent --features all
+    ./run.sh ihm_lr --method gridsearch --period first50percent --features all
+    ./run.sh ihm_lr --method gridsearch --period all --features all
+
+;;
+
 ihm_dl)
     cd mimic3models/in_hospital_mortality/
     python -u main.py --prefix $PREFIX --network ../common_keras_models/lstm.py $@
+;;
+
+test_ihm_dl)
+    ./run.sh ihm_dl --dim 8 --depth 1 --dropout 0 
+    ./run.sh ihm_dl --dim 16 --depth 1 --dropout 0 
+    ./run.sh ihm_dl --dim 32 --depth 1 --dropout 0 
+    ./run.sh ihm_dl --dim 64 --depth 1 --dropout 0 
+    ./run.sh ihm_dl --dim 128 --depth 1 --dropout 0 
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0 
+
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.5 
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.7 
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.9 
 ;;
 
 ihm_dl_fast)
@@ -166,5 +209,6 @@ verify_data)
 ;;
 esac
 
+set +x
 NOW=$(date +%Y%m%d_%H%M%S)
-echo ">>" END $NOW $TASK $ARGS GPU $CUDA_VISIBLE_DEVICES LOG $LOGFILE
+echo ">> END $NOW $TASK $ARGS"

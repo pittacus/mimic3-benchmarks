@@ -44,7 +44,7 @@ discretizer_header = discretizer.transform(train_reader.read_example(0)["X"])[1]
 cont_channels = [i for (i, x) in enumerate(discretizer_header) if x.find("->") == -1]
 
 normalizer = Normalizer(fields=cont_channels)  # choose here onlycont vs all
-normalizer.load_params('ihm_ts%s.input_str:%s.start_time:zero.normalizer' % (args.timestep, args.imputation))
+normalizer.load_params('ihm_ts%s.input_str.%s.start_time.zero.normalizer' % (args.timestep, args.imputation))
 
 args_dict = dict(args._get_kwargs())
 args_dict['header'] = discretizer_header
@@ -141,6 +141,21 @@ if args.mode == 'train':
               shuffle=True,
               verbose=args.verbose,
               batch_size=args.batch_size)
+
+    print "==> test"
+    test_reader = InHospitalMortalityReader(dataset_dir='../../data/in-hospital-mortality/test/',
+                                            listfile='../../data/in-hospital-mortality/test_listfile.csv',
+                                            period_length=48.0)
+    ret = utils.load_data(test_reader, discretizer, normalizer, args.small_part,
+                          return_names=True)
+
+    data = ret["data"][0]
+    labels = ret["data"][1]
+    names = ret["names"]
+
+    predictions = model.predict(data, batch_size=args.batch_size, verbose=1)
+    predictions = np.array(predictions)[:, 0]
+    metrics.print_metrics_binary(labels, predictions)
 
 elif args.mode == 'test':
 
