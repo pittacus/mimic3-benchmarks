@@ -124,7 +124,7 @@ if args.mode == 'train':
     dirname = os.path.dirname(path)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
-    saver = ModelCheckpoint(path, verbose=1, period=args.save_every)
+    saver = ModelCheckpoint(path, verbose=1, save_best_only=True, period=args.save_every)
 
     if not os.path.exists('keras_logs'):
         os.makedirs('keras_logs')

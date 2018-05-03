@@ -11,8 +11,8 @@ NOW=$(date +%Y%m%d_%H%M%S)
 export PS4='+{$LINENO:${FUNCNAME[0]}} '
 
 export CUDA_VISIBLE_DEVICES=$(python -c "import setGPU" | cut -d " " -f 5) || true
-
 source activate mimic
+
 
 old="$IFS"
 IFS='_'
@@ -20,7 +20,7 @@ export ARGS="$*"
 export ARGS="${ARGS//-/}"
 IFS=$old
 
-export PREFIX=${NOW}_${TASK}
+export PREFIX=${NOW}_${TASK}__${ARGS}_
 export LOGFILE=logs/${NOW}_${TASK}_${ARGS}.log
 
 mkdir -p logs
@@ -130,18 +130,80 @@ ihm_dl)
     cd mimic3models/in_hospital_mortality/
     python -u main.py --prefix $PREFIX --network ../common_keras_models/lstm.py $@
 ;;
+test_r1_ihm_dl)
+    export CUDA_VISIBLE_DEVICES=-1
+ 
+    ./run.sh ihm_dl --dim 8 --depth 1 --dropout 0 &
+    ./run.sh ihm_dl --dim 16 --depth 1 --dropout 0 &
+    ./run.sh ihm_dl --dim 32 --depth 1 --dropout 0 &
+    ./run.sh ihm_dl --dim 64 --depth 1 --dropout 0 &
+    ./run.sh ihm_dl --dim 128 --depth 1 --dropout 0 &
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0 &
+ 
+    ./run.sh ihm_dl --dim 8 --depth 1 --dropout 0 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 16 --depth 1 --dropout 0 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 32 --depth 1 --dropout 0 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 64 --depth 1 --dropout 0 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 128 --depth 1 --dropout 0 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0 --lr 0.0001 &
+ 
+    ./run.sh ihm_dl --dim 64 --depth 1 --dropout 0.3 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 64 --depth 1 --dropout 0.5 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 64 --depth 1 --dropout 0.7 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 64 --depth 1 --dropout 0.9 --lr 0.0001 &
+ 
+    ./run.sh ihm_dl --dim 128 --depth 1 --dropout 0.3 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 128 --depth 1 --dropout 0.5 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 128 --depth 1 --dropout 0.7 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 128 --depth 1 --dropout 0.9 --lr 0.0001 &
+ 
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.3 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.5 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.7 --lr 0.0001 &
+    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.9 --lr 0.0001 &
+    wait
+    ;;
 
-test_ihm_dl)
-    ./run.sh ihm_dl --dim 8 --depth 1 --dropout 0 
-    ./run.sh ihm_dl --dim 16 --depth 1 --dropout 0 
-    ./run.sh ihm_dl --dim 32 --depth 1 --dropout 0 
-    ./run.sh ihm_dl --dim 64 --depth 1 --dropout 0 
-    ./run.sh ihm_dl --dim 128 --depth 1 --dropout 0 
-    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0 
+test_r2_ihm_dl)
+    export CUDA_VISIBLE_DEVICES=-1
+    COMMON_ARGS="--depth 1 --dropout 0 --target_repl_coef 0.9"
+    ./run.sh ihm_dl --dim 8 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 16 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 32 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 64 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 128 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 256 $COMMON_ARGS &
 
-    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.5 
-    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.7 
-    ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.9 
+    COMMON_ARGS="--depth 1 --dropout 0 --lr 0.0001 --target_repl_coef 0.9"
+    ./run.sh ihm_dl --dim 8 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 16 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 32 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 64 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 128 $COMMON_ARGS &
+    ./run.sh ihm_dl --dim 256 $COMMON_ARGS &
+
+    COMMON_ARGS="--depth 64 --depth 1 ---target_repl_coef 0.9"
+    ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
+
+    COMMON_ARGS="--depth 128 --depth 1 ---target_repl_coef 0.9"
+    ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
+
+    COMMON_ARGS="--depth 256 --depth 1 ---target_repl_coef 0.9"
+    ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
+    wait
+    
 ;;
 
 ihm_dl_fast)
@@ -206,6 +268,29 @@ download_demo)
 verify_data)
     md5sum *.gz > md5sum2.txt
     cat md5sum2.txt
+;;
+
+init)
+    rm -f data
+    ln -s ../mimic3data/data/ data
+    ls -la
+;;
+
+init_demo)
+    rm -f data
+    ln -s ../mimic3demo/data/ data
+    ls -la
+;;
+
+summary)
+    for log in mimic3models/in_hospital_mortality/keras_logs/*.csv
+    do 
+        echo $log
+        tail -n 1 $log | cut -d ";" -f 1,2,3,14,11
+        tail -n -1 $log | cut -d ";" -f 1,2,3,14,11
+        echo "==="
+    done
+
 ;;
 esac
 
