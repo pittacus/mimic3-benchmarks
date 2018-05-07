@@ -18,9 +18,10 @@ old="$IFS"
 IFS='_'
 export ARGS="$*"
 export ARGS="${ARGS//-/}"
+export ARGS="${ARGS//\//_}"
 IFS=$old
 
-export PREFIX=${NOW}_${TASK}__${ARGS}_
+export PREFIX=${NOW}_${TASK}_${ARGS}_
 export LOGFILE=logs/${NOW}_${TASK}_${ARGS}.log
 
 mkdir -p logs
@@ -163,10 +164,27 @@ test_r1_ihm_dl)
     ./run.sh ihm_dl --dim 256 --depth 1 --dropout 0.9 --lr 0.0001 &
     wait
     ;;
+#     mimic3models/in_hospital_mortality/keras_logs/20180504_071820_ihm_dl__dim_64_depth_1_dropout_0.5_lr_0.0001_k_lstm.n64.d0.5.dep1.bs64.ts1.0.csv
+# 99	0.2950770676310596	0.8731337949071676	0.8588725080184672	0.28598656973840286
+
+# ./run.sh ihm_dl --dropout 0.5 --depth 64 --depth 1 
+
+# test
+# confusion matrix:
+# [[2800   62]
+#  [ 264  110]]
+# accuracy = 0.8992583
+# precision class 0 = 0.91383815
+# precision class 1 = 0.6395349
+# recall class 0 = 0.9783368
+# recall calss 1 = 0.29411766
+# AUC of ROC = 0.854536859531
+# AUC of PRC = 0.4877418497
+# min(+P, Se) = 0.466666666667
 
 test_r2_ihm_dl)
     export CUDA_VISIBLE_DEVICES=-1
-    COMMON_ARGS="--depth 1 --dropout 0 --target_repl_coef 0.9"
+    COMMON_ARGS="--depth 1 --dropout 0 --target_repl_coef 0.9 --epochs 1000"
     ./run.sh ihm_dl --dim 8 $COMMON_ARGS &
     ./run.sh ihm_dl --dim 16 $COMMON_ARGS &
     ./run.sh ihm_dl --dim 32 $COMMON_ARGS &
@@ -182,14 +200,14 @@ test_r2_ihm_dl)
     ./run.sh ihm_dl --dim 128 $COMMON_ARGS &
     ./run.sh ihm_dl --dim 256 $COMMON_ARGS &
 
-    COMMON_ARGS="--depth 64 --depth 1 ---target_repl_coef 0.9"
+    COMMON_ARGS="--dim 64 --depth 1 ---target_repl_coef 0.9"
     ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
     ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
     ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
     ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
     ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
 
-    COMMON_ARGS="--depth 128 --depth 1 ---target_repl_coef 0.9"
+    COMMON_ARGS="--dim 128 --depth 1 ---target_repl_coef 0.9"
     ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
     ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
     ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
@@ -203,7 +221,51 @@ test_r2_ihm_dl)
     ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
     ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
     wait
-    
+;;
+
+
+test_r3_ihm_dl)
+    export CUDA_VISIBLE_DEVICES=-1
+
+    for depth in 2 3 4
+    do
+    COMMON_ARGS="--dim 64 -depth $depth"
+    ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
+
+    COMMON_ARGS="--dim 32 --depth $depth"
+    ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
+
+    COMMON_ARGS="--dim 16 --depth $depth"
+    ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
+
+    COMMON_ARGS="--depth 8 --depth $depth"
+    ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
+
+    COMMON_ARGS="--depth 4 --depth $depth"
+    ./run.sh ihm_dl --dropout 0.1 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.3 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.5 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.7 $COMMON_ARGS &
+    ./run.sh ihm_dl --dropout 0.9 $COMMON_ARGS &
+    done
+    wait
+
 ;;
 
 ihm_dl_fast)
@@ -283,12 +345,15 @@ init_demo)
 ;;
 
 summary)
-    for log in mimic3models/in_hospital_mortality/keras_logs/*.csv
+    set +x
+    for log in mimic3models/in_hospital_mortality/keras_logs/*ts1.0.csv
     do 
         echo $log
-        tail -n 1 $log | cut -d ";" -f 1,2,3,14,11
-        tail -n -1 $log | cut -d ";" -f 1,2,3,14,11
-        echo "==="
+        # head -n 1 $log | cut -d ";" -f 1,2,14,3,11
+        # head -n 1 $log | cut -d ";" -f 1,2,11,5,13 | tr ';' '\t'
+        tail -n 1 $log | cut -d ";" -f 1,2,14,5,13 | tr ';' '\t'
+        # tail -n 1 $log |  tr ';' '\t'
+        # echo "==="
     done
 
 ;;
